@@ -29,6 +29,15 @@ jobs:
       - name: Checkout this repository
         uses: actions/checkout@v3
 
+      - name: Modify Dockerfile to build using checked out repository
+        run: |
+          sed -i -E "
+              3,9d; \
+              s@^    (mkdir -p /app/s3s-config && \\\)@\\nRUN \1@; \
+              10 i COPY\ s3s/\ /app/s3s \
+            " Dockerfile
+        shell: bash
+
       - name: Restore s3s repository cache
         id: restore-s3s-repo-cache
         if: ${{ (github.event.inputs.s3s-repo-cache-key || '') != '' }}
