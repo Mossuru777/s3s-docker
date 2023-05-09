@@ -2,7 +2,7 @@ name: Check s3s update
 
 on:
   schedule:
-    - cron: "50 3 * * *"
+    - cron: "50 18 * * *"
   workflow_dispatch:
 
 jobs:
