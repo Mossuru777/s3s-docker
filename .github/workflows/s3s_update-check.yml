@@ -1,0 +1,118 @@
+name: Check s3s update
+
+on:
+  schedule:
+    - cron: "50 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  s3s_update-check:
+    name: Check s3s update
+    runs-on: ubuntu-latest
+    outputs:
+      need-build: ${{ steps.version-comparer.outputs.result == '1' }}
+      s3s-repo-cache-key: s3s-repo-cache-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v3
+
+      - name: Checkout s3s repository
+        uses: actions/checkout@v3
+        with:
+          repository: frozenpandaman/s3s
+          path: ${{ github.workspace }}/s3s
+
+      - name: Extract s3s information (version / commit hash)
+        id: s3s-info-extractor
+        uses: ./.github/actions/extract-s3s-information
+        with:
+          s3s-path: ${{ github.workspace }}/s3s
+
+      - name: Get UnixTime
+        id: get-unixtime
+        run: echo "unixtime=$(/bin/date "+%s")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Restore last build version log
+        uses: actions/cache/restore@v3
+        with:
+          key: version-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
+          path: ~/version
+          restore-keys: |
+            version-${{ github.sha }}-
+            version-
+
+      - name: Fetch last build version
+        id: last-build-fetcher
+        run: |
+          if [[ -f ~/version/last ]]
+          then
+            version="$(cat ~/version/last)"
+          else
+            version="0"
+          fi
+          echo "version=${version}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Compare version
+        id: version-comparer
+        run: |
+          # https://stackoverflow.com/a/4025065
+          vercomp () {
+              if [[ $1 == $2 ]]
+              then
+                  echo -n "0"
+                  return 0
+              fi
+              local IFS=.
+              local i ver1=($1) ver2=($2)
+              # fill empty fields in ver1 with zeros
+              for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
+              do
+                  ver1[i]=0
+              done
+              for ((i=0; i<${#ver1[@]}; i++))
+              do
+                  if [[ -z ${ver2[i]} ]]
+                  then
+                      # fill empty fields in ver2 with zeros
+                      ver2[i]=0
+                  fi
+                  if ((10#${ver1[i]} > 10#${ver2[i]}))
+                  then
+                      echo -n "1"
+                      return 0
+                  fi
+                  if ((10#${ver1[i]} < 10#${ver2[i]}))
+                  then
+                      echo -n "2"
+                      return 0
+                  fi
+              done
+              echo -n "0"
+              return 0
+          }
+
+          result=$(vercomp ${{ steps.s3s-info-extractor.outputs.version }} ${{ steps.last-build-fetcher.outputs.version }})
+          echo "result=${result}" >> $GITHUB_OUTPUT
+
+          echo "Current Version: ${{ steps.s3s-info-extractor.outputs.version }}"
+          echo "Last Build Version: ${{ steps.last-build-fetcher.outputs.version }}"
+          echo "Compare Result: ${result} (0:Current==Last, 1:Current>Last, 2:Current<Last)"
+
+      - name: Cache s3s repository for use in Docker image build and push workflow.
+        if: ${{ steps.version-comparer.outputs.result == '1' }}
+        uses: actions/cache/save@v3
+        with:
+          key: s3s-repo-cache-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
+          path: |
+            ${{ github.workspace }}/s3s
+
+  s3s-docker_build-push:
+    needs: s3s_update-check
+    if: ${{ needs.s3s_update-check.outputs.need-build }}
+    uses: ./.github/workflows/s3s-docker_build-push.yml
+    secrets: inherit
+    with:
+      s3s-repo-cache-key: ${{ needs.s3s_update-check.outputs.s3s-repo-cache-key }}
+      image-push-to-docker-hub: true

@@ -75,6 +75,7 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_PERSONAL_ACCESS_TOKEN }}
 
       - name: Build (and Push) Image
+        id: build-and-push
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -83,3 +84,18 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/s3s-docker:${{ steps.s3s-info-extractor.outputs.version }}
             ${{ secrets.DOCKER_HUB_USERNAME }}/s3s-docker:latest
+
+      - name: Create build version log
+        id: create-build-version-log
+        if: ${{ (!! github.event.image-push-to-docker-hub) && steps.build-and-push.conclusion == 'success' }}
+        run: |
+          mkdir -p ~/version
+          echo -n '${{ steps.s3s-info-extractor.outputs.version }}' > ~/version/last
+        shell: bash
+
+      - name: Store build version log
+        if: ${{ steps.create-build-version-log.conclusion == 'success' }}
+        uses: actions/cache/save@v3
+        with:
+          path: ~/version
+          key: version-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
