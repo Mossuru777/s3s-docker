@@ -1,0 +1,39 @@
+name: "extract s3s information"
+description: "extract s3s version (from s3s.py) / commit hash."
+
+inputs:
+  s3s-path:
+    description: "s3s repository directory path"
+    required: true
+
+outputs:
+  version:
+    description: "s3s version"
+    value: ${{ steps.version-extractor.outputs.version }}
+  commit-hash:
+    description: "s3s commit hash"
+    value: ${{ steps.version-extractor.outputs.commit-hash }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Extract s3s version / commit hash
+      id: version-extractor
+      run: |
+        cd "${{ inputs.s3s-path }}"
+
+        VER_REGEX="[0-9]+\.[0-9]+\.[0-9]+"
+        S3S_PY_VER_REGEX="^[\t ]*A_VERSION[\t ]*=[\t ]*[\"'](${VER_REGEX})[\"'][\t ]*$"
+        version="$(grep -E "${S3S_PY_VER_REGEX}" ./s3s.py | sed -E "s/${S3S_PY_VER_REGEX}/\1/")"
+        if [[ $version =~ ^${VER_REGEX}$ ]]; then
+          echo "s3s version: ${version}"
+          echo "version=${version}" >> $GITHUB_OUTPUT
+        else
+          echo "Can't extract s3s version!" 1>&2
+          exit 1
+        fi
+
+        commit_hash="$(git rev-parse HEAD)"
+        echo "s3s commit hash: ${commit_hash}"
+        echo "commit-hash=${commit_hash}" >> $GITHUB_OUTPUT
+      shell: bash
