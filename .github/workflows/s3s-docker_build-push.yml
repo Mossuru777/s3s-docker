@@ -6,6 +6,10 @@ on:
   release:
   workflow_call:
     inputs:
+      caller-unixtime:
+        description: "UnixTime of the caller's workflow execution."
+        required: true
+        type: string
       s3s-repo-cache-key:
         description: "s3s repository cache key."
         required: true
@@ -98,4 +102,4 @@ jobs:
         uses: actions/cache/save@v3
         with:
           path: ~/version
-          key: version-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
+          key: version-${{ github.sha }}-${{ inputs.caller-unixtime }}

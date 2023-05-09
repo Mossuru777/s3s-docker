@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       need-build: ${{ steps.version-comparer.outputs.result == '1' }}
+      unixtime: ${{ steps.get-unixtime.outputs.unixtime }}
       s3s-repo-cache-key: s3s-repo-cache-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
     steps:
       - name: Checkout this repository
@@ -114,5 +115,6 @@ jobs:
     uses: ./.github/workflows/s3s-docker_build-push.yml
     secrets: inherit
     with:
+      caller-unixtime: ${{ needs.s3s_update-check.outputs.unixtime }}
       s3s-repo-cache-key: ${{ needs.s3s_update-check.outputs.s3s-repo-cache-key }}
       image-push-to-docker-hub: true
