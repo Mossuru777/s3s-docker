@@ -40,10 +40,10 @@ jobs:
 
       - name: Restore s3s repository cache
         id: restore-s3s-repo-cache
-        if: ${{ (github.event.inputs.s3s-repo-cache-key || '') != '' }}
+        if: ${{ ((inputs && inputs.s3s-repo-cache-key) || '') != '' }}
         uses: actions/cache/restore@v3
         with:
-          key: ${{ github.event.inputs.s3s-repo-cache-key }}
+          key: ${{ inputs.s3s-repo-cache-key }}
           path: |
             ${{ github.workspace }}/s3s
           fail-on-cache-miss: true
@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: frozenpandaman/s3s
-          ref: ${{ github.event.inputs.s3s-commit-ref || '' }}
+          ref: ${{ (inputs && inputs.s3s-commit-ref) || '' }}
           path: ${{ github.workspace }}/s3s
 
       - name: Extract s3s information (version / commit hash)
@@ -79,7 +79,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          push: ${{ !! github.event.image-push-to-docker-hub }}
+          push: ${{ inputs && inputs.image-push-to-docker-hub || false }}
           platforms: "linux/amd64,linux/386,linux/arm64,linux/arm,linux/arm/v6"
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/s3s-docker:${{ steps.s3s-info-extractor.outputs.version }}
@@ -87,7 +87,7 @@ jobs:
 
       - name: Create build version log
         id: create-build-version-log
-        if: ${{ (!! github.event.image-push-to-docker-hub) && steps.build-and-push.conclusion == 'success' }}
+        if: ${{ inputs && inputs.image-push-to-docker-hub && steps.build-and-push.conclusion == 'success' }}
         run: |
           mkdir -p ~/version
           echo -n '${{ steps.s3s-info-extractor.outputs.version }}' > ~/version/last
