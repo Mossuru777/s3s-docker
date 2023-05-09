@@ -111,7 +111,7 @@ jobs:
 
   s3s-docker_build-push:
     needs: s3s_update-check
-    if: ${{ needs.s3s_update-check.outputs.need-build }}
+    if: ${{ fromJson(needs.s3s_update-check.outputs.need-build) }}
     uses: ./.github/workflows/s3s-docker_build-push.yml
     secrets: inherit
     with:
