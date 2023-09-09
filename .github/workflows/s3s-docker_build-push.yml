@@ -95,11 +95,16 @@ jobs:
         run: |
           mkdir -p ~/version
           echo -n '${{ steps.s3s-info-extractor.outputs.version }}' > ~/version/last
+
+          mkdir -p ~/commit-hash
+          echo -n '${{ steps.s3s-info-extractor.outputs.commit-hash }}' > ~/commit-hash/last
         shell: bash
 
       - name: Store build version log
         if: ${{ steps.create-build-version-log.conclusion == 'success' }}
         uses: actions/cache/save@v3
         with:
-          path: ~/version
-          key: version-${{ github.sha }}-${{ inputs.caller-unixtime }}
+          path: |
+            ~/version
+            ~/commit-hash
+          key: build-log-${{ github.sha }}-${{ inputs.caller-unixtime }}

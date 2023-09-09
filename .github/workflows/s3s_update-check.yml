@@ -34,16 +34,18 @@ jobs:
         run: echo "unixtime=$(/bin/date "+%s")" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: Restore last build version log
+      - name: Restore last build (version / commit hash) log
         uses: actions/cache/restore@v3
         with:
           key: version-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
-          path: ~/version
+          path: |
+            ~/version
+            ~/commit-hash
           restore-keys: |
-            version-${{ github.sha }}-
-            version-
+            build-log-${{ github.sha }}-
+            build-log-
 
-      - name: Fetch last build version
+      - name: Fetch last build s3s information (version / commit hash)
         id: last-build-fetcher
         run: |
           if [[ -f ~/version/last ]]
@@ -53,6 +55,14 @@ jobs:
             version="0"
           fi
           echo "version=${version}" >> $GITHUB_OUTPUT
+
+          if [[ -f ~/commit-hash/last ]]
+          then
+            commit_hash="$(cat ~/commit-hash/last)"
+          else
+            commit_hash=""
+          fi
+          echo "commit-hash=${commit_hash}" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Compare version
@@ -101,8 +111,28 @@ jobs:
           echo "Last Build Version: ${{ steps.last-build-fetcher.outputs.version }}"
           echo "Compare Result: ${result} (0:Current==Last, 1:Current>Last, 2:Current<Last)"
 
+      - name: Compare commit hash
+        id: commit-hash-comparer
+        run: |
+          hashcomp () {
+              if [[ $1 == $2 ]] && { [[ -n $1 ]] || [[ -n $2 ]]; }
+              then
+                echo -n "0"
+              else
+                echo -n "1"
+              fi
+              return 0
+          }
+
+          result=$(hashcomp ${{ steps.s3s-info-extractor.outputs.commit-hash }} ${{ steps.last-build-fetcher.outputs.commit-hash }})
+          echo "result=${result}" >> $GITHUB_OUTPUT
+
+          echo "Current Commit Hash: ${{ steps.s3s-info-extractor.outputs.commit-hash }}"
+          echo "Last Build Commit Hash: ${{ steps.last-build-fetcher.outputs.commit-hash }}"
+          echo "Compare Result: ${result} (0:Current==Last, 1:Current!=Last)"
+
       - name: Cache s3s repository for use in Docker image build and push workflow.
-        if: ${{ steps.version-comparer.outputs.result == '1' }}
+        if: ${{ steps.version-comparer.outputs.result == '1' ||  steps.commit-hash-comparer.outputs.result == '1'}}
         uses: actions/cache/save@v3
         with:
           key: s3s-repo-cache-${{ github.sha }}-${{ steps.get-unixtime.outputs.unixtime }}
